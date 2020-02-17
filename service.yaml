@@ -1,0 +1,265 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Provisions an ECS Service
+
+Parameters:
+  ServiceName:
+	Description: An Service name that will be prefixed to resource names
+    Type: String
+
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Description: Create VPC endpoints in this VPC
+
+  PrivateSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: The private subnets in which to create the service
+
+  PublicSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: The public subnets in which to create the load balancer
+	
+  ECRImageName:
+	Description: An ECR Image name for the service
+	Type: String
+
+  ECSCluster:
+    Description: ECS Cluster Id
+    Type: AWS::ECS::Cluster:Id
+
+  LoadBalancerCertificateARN:
+    Description: Load balancer SSL Certification ARN if https
+    Type: String
+
+  ECSTaskExecutionRole:
+    Description: ESC Execution Role arn
+    Type: String
+
+  ECSTaskRole:
+    Description: ESC Task Role arn
+    Type: String
+
+Resources:
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Load balancer security group
+      GroupName: !Sub "${Prefix}-load-balancer-sg"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - Description: https Port
+            IpProtocol: HTTPS
+            FromPort: 443
+            ToPort: 443
+            CidrIp: 0.0.0.0/0
+        - Description: http Port
+            IpProtocol: HTTP
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 0.0.0.0/0
+        - Description: https test Port
+            IpProtocol: HTTPS
+            FromPort: 8443
+            ToPort: 8443
+            CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub "${Prefix}-load-balancer-sg"
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "${Prefix}-load-balancer"
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: "30"
+      Subnets: !Ref PublicSubnets
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+
+    HTTPPortRedirectListener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        Properties:
+        LoadBalancerArn: !Ref LoadBalancer
+        Port: 80
+        Protocol: HTTP
+            DefaultActions:
+                Type: redirect
+                - RedirectConfig:
+                    Host: '#{host}'
+                    Path: '/#{path}'
+                    Port: 443
+                    Protocol: HTTPS
+                    Query: '#{query}'
+                    StatusCode: HTTP_301
+
+    LoadBalancerListener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        Properties:
+            LoadBalancerArn: !Ref LoadBalancer
+            Certificates:
+                - CertificateArn: !Ref LoadBalancerCertificateARN
+            Port: 443
+            Protocol: HTTPS
+            DefaultActions: 
+                - Type: forward
+                  TargetGroupArn: !Ref LoadBalancerTargetGroupBG1
+
+  TESTLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+       Certificates:
+        - CertificateArn: !Ref LoadBalancerCertificateARN
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 8443
+      Protocol: HTTPS
+      DefaultActions:
+        - TargetGroupArn: !Ref LoadBalancerTargetGroupBG1
+          Type: forward
+
+  LoadBalancerTargetGroupBG1:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${Prefix}-target-bg1"
+      HealthCheckIntervalSeconds: 7
+      HealthCheckPath: "/api/v1/ping"
+      HealthCheckProtocol: HTTPS
+      HealthCheckTimeoutSeconds: 6
+      HealthyThresholdCount: 2
+      TargetType: ip
+      Port: 5000
+      Protocol: HTTPS
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref VPC
+
+  LoadBalancerTargetGroupBG2:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${Prefix}-target-bg2"
+      HealthCheckIntervalSeconds: 7
+      HealthCheckPath: "/api/v1/ping"
+      HealthCheckProtocol: HTTPS
+      HealthCheckTimeoutSeconds: 6
+      HealthyThresholdCount: 2
+      TargetType: ip
+      Port: 5000
+      Protocol: HTTPS
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref VPC
+
+
+  ECSTaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS task security group
+      GroupName: !Sub "${ServiceName}-ecs-task-sg"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+          IpProtocol: -1
+      Tags:
+        - Key: Name
+          Value: !Sub "${ServiceName}-ecs-task-sg"
+
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      ServiceName: !Sub "${EnvironmentName}"
+      LaunchType: FARGATE
+      HealthCheckGracePeriodSeconds: 60
+      # For CloudFormation not to get stuck during AWS::ECS::Service specify the task ARN
+      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: !Ref PrivateSubnets
+          SecurityGroups:
+            - !Ref ECSTaskSecurityGroup
+      LoadBalancers:
+        - ContainerName: !Sub "${ServiceName}"
+          ContainerPort: 5000
+          TargetGroupArn: !Ref LoadBalancerTargetGroupBG1
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ExecutionRoleArn: !Sub ECSTaskExecutionRole
+      TaskRoleArn: !Sub ECSTaskRole
+      Family: !Sub "${EnvironmentName}"
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ContainerDefinitions:
+        - Name: !Sub "${EnvironmentName}"
+          Image: !Ref ECRImageName
+          PortMappings:
+            - ContainerPort: 3030
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref LogGroup
+              awslogs-stream-prefix: !Sub "${EnvironmentName}"
+
+  AutoScalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-auto-scaling-role"
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [application-autoscaling.amazonaws.com]
+            Action: ["sts:AssumeRole"]
+      Policies:
+        - PolicyName: !Sub "${EnvironmentName}-auto-scaling-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeServices
+                  - ecs:UpdateService
+                  - cloudwatch:PutMetricAlarm
+                  - cloudwatch:DescribeAlarms
+                  - cloudwatch:DeleteAlarms
+                Resource:
+                  - "*"
+
+  ScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    DependsOn: Service
+    Properties:
+      RoleARN: !GetAtt AutoScalingRole.Arn
+      ResourceId: !Join
+        - "/"
+        - [service, !Ref ECSCluster, !GetAtt [Service, Name]]
+      ServiceNamespace: ecs
+      ScalableDimension: ecs:service:DesiredCount
+      MinCapacity: 1
+      MaxCapacity: 5
+
+  ScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub "${EnvironmentName}-auto-scaling-policy"
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: 75.0
+
+Outputs:
+  Service:
+    Description: A reference to the ECS Servicve
+    Value: !Ref Service
+
+  TaskDefinition:
+    Description: A reference to the Task Definition
+    Value: !Ref TaskDefinition
