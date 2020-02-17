@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Provisions an ECS Service
+Description: Provisions an ECS Fargate Service
 
 Parameters:
   ServiceName:
@@ -44,7 +44,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Load balancer security group
-      GroupName: !Sub "${Prefix}-load-balancer-sg"
+      GroupName: !Sub "${ServiceName}-load-balancer-sg"
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - Description: https Port
@@ -64,12 +64,12 @@ Resources:
             CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
-          Value: !Sub "${Prefix}-load-balancer-sg"
+          Value: !Sub "${ServiceName}-load-balancer-sg"
 
   LoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub "${Prefix}-load-balancer"
+      Name: !Sub "${ServiceName}-load-balancer"
       Scheme: internet-facing
       LoadBalancerAttributes:
         - Key: idle_timeout.timeout_seconds
@@ -121,7 +121,7 @@ Resources:
   LoadBalancerTargetGroupBG1:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub "${Prefix}-target-bg1"
+      Name: !Sub "${ServiceName}-target-bg1"
       HealthCheckIntervalSeconds: 7
       HealthCheckPath: "/api/v1/ping"
       HealthCheckProtocol: HTTPS
@@ -136,7 +136,7 @@ Resources:
   LoadBalancerTargetGroupBG2:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub "${Prefix}-target-bg2"
+      Name: !Sub "${ServiceName}-target-bg2"
       HealthCheckIntervalSeconds: 7
       HealthCheckPath: "/api/v1/ping"
       HealthCheckProtocol: HTTPS
@@ -166,7 +166,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       Cluster: !Ref ECSCluster
-      ServiceName: !Sub "${EnvironmentName}"
+      ServiceName: !Sub "${ServiceName}"
       LaunchType: FARGATE
       HealthCheckGracePeriodSeconds: 60
       # For CloudFormation not to get stuck during AWS::ECS::Service specify the task ARN
@@ -188,14 +188,14 @@ Resources:
     Properties:
       ExecutionRoleArn: !Sub ECSTaskExecutionRole
       TaskRoleArn: !Sub ECSTaskRole
-      Family: !Sub "${EnvironmentName}"
+      Family: !Sub "${ServiceName}"
       Cpu: "256"
       Memory: "512"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
       ContainerDefinitions:
-        - Name: !Sub "${EnvironmentName}"
+        - Name: !Sub "${ServiceName}"
           Image: !Ref ECRImageName
           PortMappings:
             - ContainerPort: 3030
@@ -204,12 +204,12 @@ Resources:
             Options:
               awslogs-region: !Ref AWS::Region
               awslogs-group: !Ref LogGroup
-              awslogs-stream-prefix: !Sub "${EnvironmentName}"
+              awslogs-stream-prefix: !Sub "${ServiceName}"
 
   AutoScalingRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "${EnvironmentName}-auto-scaling-role"
+      RoleName: !Sub "${ServiceName}-auto-scaling-role"
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
@@ -217,7 +217,7 @@ Resources:
               Service: [application-autoscaling.amazonaws.com]
             Action: ["sts:AssumeRole"]
       Policies:
-        - PolicyName: !Sub "${EnvironmentName}-auto-scaling-policy"
+        - PolicyName: !Sub "${ServiceName}-auto-scaling-policy"
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -247,7 +247,7 @@ Resources:
   ScalingPolicy:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
     Properties:
-      PolicyName: !Sub "${EnvironmentName}-auto-scaling-policy"
+      PolicyName: !Sub "${ServiceName}-auto-scaling-policy"
       PolicyType: TargetTrackingScaling
       ScalingTargetId: !Ref ScalableTarget
       TargetTrackingScalingPolicyConfiguration:

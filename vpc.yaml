@@ -267,97 +267,96 @@ Resources:
             RouteTableId: !Ref PrivateRouteTable3
             SubnetId: !Ref PrivateSubnet3
 
-  ECSCluster:
-    Type: AWS::ECS::Cluster
-    Properties:
-      ClusterName: !Sub "${EnvironmentName}-ecs-cluster"
-      Tags:
-        - Key: Name
-          Value: !Sub "${EnvironmentName}-ecs-cluster"
+    ECSCluster:
+        Type: AWS::ECS::Cluster
+        Properties:
+            ClusterName: !Sub "${EnvironmentName}-ecs-cluster"
+            Tags:
+                - Key: Name
+                  Value: !Sub "${EnvironmentName}-ecs-cluster"
 
   # This role is required by ECS tasks to pull container images, publish container
   # logs to CloudWatch, as well as retrieve secrets from the Secrets Manager
   # The managed policy arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
   # is equivalent to the below inline policy with the exception of the secretsmanager action
-  ECSTaskExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub "${Prefix}-ecs-task-execution-role"
-      AssumeRolePolicyDocument:
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: [ecs-tasks.amazonaws.com]
-            Action: ["sts:AssumeRole"]
-      Policies:
-        - PolicyName: !Sub "${EnvironmentName}-ecs-task-execution-role-policy"
-          PolicyDocument:
-            Statement:
-              - Effect: Allow
-                Action:
-                  - "ecr:GetAuthorizationToken"
-                  - "ecr:BatchCheckLayerAvailability"
-                  - "ecr:GetDownloadUrlForLayer"
-                  - "ecr:BatchGetImage"
-                  - "logs:CreateLogStream"
-                  - "logs:PutLogEvents"
-                  - "secretsmanager:GetSecretValue"
-                Resource: "*"
-      Tags:
-        - Key: Name
-          Value: !Sub "${EnvironmentName}-ecs-task-execution-role"
+    ECSTaskExecutionRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: !Sub "${EnvironmentName}-ecs-task-execution-role"
+            AssumeRolePolicyDocument:
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                        Service: [ecs-tasks.amazonaws.com]
+                      Action: ["sts:AssumeRole"]
+            Policies:
+                - PolicyName: !Sub "${EnvironmentName}-ecs-task-execution-role-policy"
+                  PolicyDocument:
+                    Statement:
+                    - Effect: Allow
+                      Action:
+                            - "ecr:GetAuthorizationToken"
+                            - "ecr:BatchCheckLayerAvailability"
+                            - "ecr:GetDownloadUrlForLayer"
+                            - "ecr:BatchGetImage"
+                            - "logs:CreateLogStream"
+                            - "logs:PutLogEvents"
+                            - "secretsmanager:GetSecretValue"
+                      Resource: "*"
+            Tags:
+                - Key: Name
+                  Value: !Sub "${EnvironmentName}-ecs-task-execution-role"
 
 
-  # This role allows ECS tasks to access other AWS resources / APIs
-  ECSTaskRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub "${EnvironmentName}-ecs-task-role"
-      AssumeRolePolicyDocument:
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: [ecs-tasks.amazonaws.com]
-            Action: ["sts:AssumeRole"]
-      Tags:
-        - Key: Name
-          Value: !Sub "${EnvironmentName}-ecs-task-role"
+    # This role allows ECS tasks to access other AWS resources / APIs
+    ECSTaskRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: !Sub "${EnvironmentName}-ecs-task-role"
+            AssumeRolePolicyDocument:
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                        Service: [ecs-tasks.amazonaws.com]
+                      Action: ["sts:AssumeRole"]
+            Tags:
+                - Key: Name
+                  Value: !Sub "${EnvironmentName}-ecs-task-role"
 
-  # This allows autoscaling to be performed on service
-  AutoScalingRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub "${EnvironmentName}-auto-scaling-role"
-      AssumeRolePolicyDocument:
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: [application-autoscaling.amazonaws.com]
-            Action: ["sts:AssumeRole"]
-      Policies:
-        - PolicyName: !Sub "${EnvironmentName}-auto-scaling-policy"
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ecs:DescribeServices
-                  - ecs:UpdateService
-                  - cloudwatch:PutMetricAlarm
-                  - cloudwatch:DescribeAlarms
-                  - cloudwatch:DeleteAlarms
-                Resource:
-                  - "*"
-      Tags:
-        - Key: Name
-          Value: !Sub "${EnvironmentName}-ecs-autoscaling-role"
+    # This allows autoscaling to be performed on service
+    AutoScalingRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: !Sub "${EnvironmentName}-auto-scaling-role"
+            AssumeRolePolicyDocument:
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                        Service: [application-autoscaling.amazonaws.com]
+                      Action: ["sts:AssumeRole"]
+            Policies:
+                - PolicyName: !Sub "${EnvironmentName}-auto-scaling-policy"
+                  PolicyDocument:
+                    Version: "2012-10-17"
+                    Statement:
+                        - Effect: Allow
+                          Action:
+                            - ecs:DescribeServices
+                            - ecs:UpdateService
+                            - cloudwatch:PutMetricAlarm
+                            - cloudwatch:DescribeAlarms
+                            - cloudwatch:DeleteAlarms
+                          Resource:
+                            - "*"
+            Tags:
+                - Key: Name
+                  Value: !Sub "${EnvironmentName}-ecs-autoscaling-role"
 
-  LogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "${EnvironmentName}"
-      RetentionInDays: 14
-
+    LogGroup:
+        Type: AWS::Logs::LogGroup
+        Properties:
+            LogGroupName: !Sub "${EnvironmentName}"
+            RetentionInDays: 14
 
 Outputs: 
 
@@ -372,30 +371,6 @@ Outputs:
     PrivateSubnets:
         Description: A list of the private subnets
         Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2, !Ref PrivateSubnet3 ]]
-
-    PublicSubnet1:
-        Description: A reference to the public subnet in the 1st Availability Zone
-        Value: !Ref PublicSubnet1
-
-    PublicSubnet2: 
-        Description: A reference to the public subnet in the 2nd Availability Zone
-        Value: !Ref PublicSubnet2
-
-    PublicSubnet3: 
-        Description: A reference to the public subnet in the 3rd Availability Zone
-        Value: !Ref PublicSubnet3
-
-    PrivateSubnet1:
-        Description: A reference to the private subnet in the 1st Availability Zone
-        Value: !Ref PrivateSubnet1
-
-    PrivateSubnet2: 
-        Description: A reference to the private subnet in the 2nd Availability Zone
-        Value: !Ref PrivateSubnet2
-
-    PrivateSubnet3: 
-        Description: A reference to the private subnet in the 3rd Availability Zone
-        Value: !Ref PrivateSubnet3
 
     ECSTaskExecutionRole:
         Description: A reference to ECS Task Execute Role
