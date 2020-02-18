@@ -314,15 +314,43 @@ Resources:
         Properties:
             RoleName: !Sub "${EnvironmentName}-ecs-task-role"
             AssumeRolePolicyDocument:
+                Version: 2012-10-17
                 Statement:
-                    - Effect: Allow
-                      Principal:
-                        Service: [ecs-tasks.amazonaws.com]
-                      Action: ["sts:AssumeRole"]
+                  - Effect: Allow
+                    Principal:
+                      Service:
+                        - batch.amazonaws.com
+                        - ecs-tasks.amazonaws.com
+                        - ecs.amazonaws.com
+                        - ec2.amazonaws.com
+                    Action:
+                      - 'sts:AssumeRole'
+            Path: '/'
             Tags:
                 - Key: Name
                   Value: !Sub "${EnvironmentName}-ecs-task-role"
 
+    TaskPolicy0:
+      Type: 'AWS::IAM::Policy'
+      Properties:
+        PolicyName: ecr-readonly
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - 'ecr:GetAuthorizationToken'
+                - 'ecr:BatchCheckLayerAvailability'
+                - 'ecr:GetDownloadUrlForLayer'
+                - 'ecr:GetRepositoryPolicy'
+                - 'ecr:DescribeRepositories'
+                - 'ecr:ListImages'
+                - 'ecr:DescribeImages'
+                - 'ecr:BatchGetImage'
+              Resource: '*'
+        Roles:
+          - !Ref ECSTaskRole
+  
     # This allows autoscaling to be performed on service
     AutoScalingRole:
         Type: AWS::IAM::Role
@@ -351,6 +379,21 @@ Resources:
             Tags:
                 - Key: Name
                   Value: !Sub "${EnvironmentName}-ecs-autoscaling-role"
+
+    BlueGreenDeployRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Statement:
+                - Action:
+                  - sts:AssumeRole
+                  Effect: Allow
+                  Principal:
+                    Service:
+                    - codedeploy.amazonaws.com
+                Version: '2012-10-17'
+            ManagedPolicyArns:
+            - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole
 
     LogGroup:
         Type: AWS::Logs::LogGroup
@@ -387,6 +430,10 @@ Outputs:
     AutoScalingRole:
         Description: A reference to ECS Auto scaling role to be used by service
         Value: !GetAtt AutoScalingRole.Arn
+
+    BlueGreenDeployRole:
+        Description: A blue green deployment role
+        Value: !GetAtt BlueGreenDeployRole.Arn
 
     LogGroup:
         Description: A reference to Log group where all logs will be shipped
