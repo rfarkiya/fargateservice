@@ -268,18 +268,6 @@ Resources:
            PredefinedMetricType: ECSServiceAverageCPUUtilization
          TargetValue: 75.0
  
-   BlueGreenApp:
-     Type: AWS::CodeDeploy::Application
-     Properties:
-       ApplicationName: !Join ["", [ Ref: ServiceName, "-bg-app"] ]
- 
-   BlueGreenDG:
-     Type: AWS::CodeDeploy::DeploymentGroup
-     Properties:
-       ApplicationName: !Ref BlueGreenApp
-       DeploymentGroupName: !Join ["", [ Ref: ServiceName, "-dg"] ]
-       ServiceRoleArn: !Ref BlueGreenDeployRole
-
 Outputs:
   Service:
     Description: A reference to the ECS Servicve
@@ -291,15 +279,15 @@ Outputs:
 
   LoadBalancer:
     Description: A reference to the Load balancer
-    Value: !Ref LoadBalancer
+    Value: !GetAtt LoadBalancer.LoadBalancerName
  
   LoadBalancerTargetGroupBG1: 
     Description: A reference to the Load Balancer Target1
-    Value: !Ref LoadBalancerTargetGroupBG1 
+    Value: !GetAtt LoadBalancerTargetGroupBG1.TargetGroupName
 
   LoadBalancerTargetGroupBG2: 
     Description: A reference to the Load Balancer Target2
-    Value: !Ref LoadBalancerTargetGroupBG2 
+    Value: !GetAtt LoadBalancerTargetGroupBG2.TargetGroupName 
 
   LoadBalancerListener: 
     Description: A reference to the Load Balancer Listener
