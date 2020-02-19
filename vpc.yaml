@@ -383,6 +383,7 @@ Resources:
     BlueGreenDeployRole:
         Type: AWS::IAM::Role
         Properties:
+            RoleName: !Sub "${EnvironmentName}-codedeploy-role"
             AssumeRolePolicyDocument:
                 Statement:
                 - Action:
@@ -392,6 +393,40 @@ Resources:
                     Service:
                     - codedeploy.amazonaws.com
                 Version: '2012-10-17'
+            Policies:
+                - PolicyName: !Sub "${EnvironmentName}-codedeploy-bg-policy"
+                  PolicyDocument:
+                    Version: "2012-10-17"
+                    Statement:
+                        - Effect: Allow
+                          Action:
+                            - ecs:DescribeServices
+                            - ecs:UpdateService
+                            - cloudwatch:PutMetricAlarm
+                            - cloudwatch:DescribeAlarms
+                            - cloudwatch:DeleteAlarms
+                            - ecs:CreateTaskSet
+                            - ecs:UpdateServicePrimaryTaskSet
+                            - ecs:DeleteTaskSet
+                            - elasticloadbalancing:DescribeTargetGroups
+                            - elasticloadbalancing:DescribeListeners
+                            - elasticloadbalancing:ModifyListener
+                            - elasticloadbalancing:DescribeRules
+                            - elasticloadbalancing:ModifyRule
+                            - lambda:InvokeFunction
+                            - cloudwatch:DescribeAlarms
+                            - sns:Publish
+                            - s3:GetObject
+                            - s3:GetObjectMetadata
+                            - s3:GetObjectVersion
+                          Resource:
+                            - "*"
+                        - Action: ["iam:PassRole"]
+                          Resource: [ !GetAtt ECSTaskExecutionRole.Arn ]
+                          Effect: Allow
+                        - Action: ["iam:PassRole"]
+                          Resource: [ !GetAtt ECSTaskRole.Arn ]
+                          Effect: Allow
             ManagedPolicyArns:
             - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole
 
